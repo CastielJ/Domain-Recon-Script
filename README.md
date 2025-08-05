@@ -17,7 +17,7 @@ IP Address – The domain's associated IP address and reverse DNS info.
 
 Tech Stack – Identifies technologies used on the website.
 
-Directory Discovery – Common hidden directories on the site.
+Directory Discovery – Directories on the site.
 
 Vulnerability Scan – Scans for security issues on the live subdomains.
 
