@@ -1,7 +1,8 @@
 #Domain Recon script
 
-You can see more info in README.md that will be in the same zip file ith the script. 
+You can see more info in README2.md
 
+Also, you can ignore the zip file in here. It has the script and readme2 in it
 
 So, I finished my first ever shell script, and I want to make it public. It just recons the Domain and gives you some info:
 
