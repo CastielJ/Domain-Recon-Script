@@ -1,72 +1,112 @@
 #!/bin/bash
+# deeper-osint.sh
+# Full OSINT scan for a domain
+# Improved & error-tolerant version (V 2.1)
+# Made by github.com/CastielJ
 
-read -p "Please write the domain name (example: example.com): " domain
-echo -e "\n A full OSINT analisis for $domain\n"
+if [ -z "$1" ]; then
+    echo "Usage: $0 <domain>"
+    exit 1
+fi
 
-mkdir -p results_$domain && cd results_$domain
+domain="$1"
+echo "=== Deeper OSINT for $domain ==="
 
-# Subdomains
-echo -e "\n Subfinder:"
-subfinder -d $domain -silent | tee subdomains.txt
+# ===== 1. Dependency check =====
+required=(
+    subfinder amass whois dig curl jq sslscan host whatweb gobuster
+    httpx nuclei waybackurls gau gf nmap
+)
+missing=()
+for cmd in "${required[@]}"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        missing+=("$cmd")
+    fi
+done
+if [ ${#missing[@]} -gt 0 ]; then
+    echo "[!] WARNING: Missing tools: ${missing[*]}"
+    echo "Install them before running for full results."
+fi
 
-echo -e "\n Amass:"
-amass enum -passive -d $domain | tee -a subdomains.txt
+# ===== 2. Subdomain enumeration =====
+echo -e "\n[+] Gathering subdomains..."
+{
+    command -v subfinder >/dev/null 2>&1 && subfinder -d "$domain" -silent
+    command -v amass >/dev/null 2>&1 && amass enum -passive -d "$domain"
+} | sort -u > subdomains.txt
+echo "[*] Found $(wc -l < subdomains.txt) subdomains"
 
+# ===== 3. crt.sh SSL certificates =====
+echo -e "\n[+] Querying crt.sh..."
+resp=$(curl -sL -H "User-Agent: Mozilla/5.0" "https://crt.sh/?q=%25.$domain&output=json")
+if echo "$resp" | jq -e '.[0]' >/dev/null 2>&1; then
+    echo "$resp" | jq -r '.[].name_value' | sed 's/\*\.//g' | sort -u >> subdomains.txt
+else
+    echo "[!] crt.sh returned invalid JSON — saved raw to crtsh_raw.txt"
+    printf '%s\n' "$resp" > crtsh_raw.txt
+fi
 sort -u subdomains.txt -o subdomains.txt
-echo -e "\n Found $(wc -l < subdomains.txt) subdomains"
 
-# DNS and WHOIS
-echo -e "\n WHOIS:"
-whois $domain | grep -Ei 'Registrar|Registrant|Name Server|Email|Updated|Expiry' | tee whois.txt
+# ===== 4. DNS info =====
+echo -e "\n[+] DNS Info..."
+command -v whois >/dev/null 2>&1 && whois "$domain" > whois.txt
+command -v dig >/dev/null 2>&1 && dig "$domain" ANY +noall +answer > dig.txt
 
-echo -e "\n dig:"
-dig ANY $domain +short | tee dns.txt
+# ===== 5. SSL scan =====
+echo -e "\n[+] SSL Scan..."
+command -v sslscan >/dev/null 2>&1 && sslscan "$domain" > sslscan.txt
 
-# SSL
-echo -e "\n SSL (crt.sh):"
-curl -s "https://crt.sh/?q=%25.$domain&output=json" | jq -r '.[].name_value' | sort -u | tee crtsh.txt
+# ===== 6. Live hosts via HTTPX =====
+echo -e "\n[+] Checking live hosts..."
+if command -v httpx >/dev/null 2>&1 && httpx -h 2>&1 | grep -qi "projectdiscovery"; then
+    cat subdomains.txt | httpx -silent -threads 50 -timeout 5 > live.txt
+    echo "[*] $(wc -l < live.txt) live hosts found"
+else
+    echo "[!] ProjectDiscovery httpx not found or wrong version"
+fi
 
-echo -e "\n SSL Info (sslscan):"
-sslscan $domain | tee sslscan.txt
+# ===== 7. Web technology fingerprinting =====
+echo -e "\n[+] Fingerprinting..."
+if command -v whatweb >/dev/null 2>&1 && [ -s live.txt ]; then
+    whatweb -i live.txt --log-verbose=whatweb.txt
+fi
 
-# IP and PTR
-ip=$(dig +short $domain | tail -n1)
-echo -e "\n IP-adress: $ip"
-host $ip | tee ptr.txt
+# ===== 8. Directory brute-forcing =====
+echo -e "\n[+] Directory brute-force..."
+if command -v gobuster >/dev/null 2>&1 && [ -s live.txt ]; then
+    while read -r url; do
+        gobuster dir -u "$url" -w /usr/share/seclists/Discovery/Web-Content/common.txt -q | tee -a gobuster.txt
+    done < live.txt
+fi
 
-# Technologies
-echo -e "\n WhatWeb:"
-whatweb https://$domain | tee whatweb.txt
+# ===== 9. Nuclei vulnerability scan =====
+echo -e "\n[+] Running nuclei..."
+if command -v nuclei >/dev/null 2>&1 && [ -s live.txt ]; then
+    nuclei -l live.txt -severity low,medium,high,critical -c 50 -o nuclei.txt
+else
+    echo "[!] nuclei not installed or live.txt empty"
+fi
 
-# Directories
-echo -e "\n Gobuster:"
-gobuster dir -u https://$domain -w /usr/share/wordlists/dirb/common.txt -t 30 -q | tee gobuster.txt
+# ===== 10. Historical URLs (Wayback/Gau) =====
+echo -e "\n[+] Gathering historical URLs..."
+if [ -s subdomains.txt ]; then
+    [ -x "$(command -v waybackurls)" ] && cat subdomains.txt | waybackurls > wayback.txt
+    [ -x "$(command -v gau)" ] && cat subdomains.txt | gau > gau.txt
+fi
 
+# ===== 11. GF filters =====
+echo -e "\n[+] Filtering URLs with gf..."
+if command -v gf >/dev/null 2>&1; then
+    mkdir -p gf_results
+    for pattern in xss sqli lfi rce; do
+        [ -s gau.txt ] && gf "$pattern" gau.txt > "gf_results/${pattern}.txt"
+    done
+fi
 
-# ----------------------[ ADVANCED OSINT ]------------------------
+# ===== 12. Nmap scan =====
+echo -e "\n[+] Running Nmap scan..."
+if command -v nmap >/dev/null 2>&1; then
+    nmap -iL live.txt -T4 -oN nmap.txt
+fi
 
-# Nuclei (Automatic vulnerability scan)
-echo -e "\n Nuclei:"
-cat subdomains.txt | httpx -silent | tee live.txt
-nuclei -l live.txt -severity low,medium,high,critical -c 50 -o nuclei.txt
-
-# Wayback and GAU (Archived URL)
-echo -e "\n Waybackurls:"
-cat subdomains.txt | waybackurls | tee wayback.txt
-
-echo -e "\n gau (GetAllURLs):"
-cat subdomains.txt | gau | tee gau.txt
-
-# GF (Templates for finding vulnerabilities)
-echo -e "\n GF: XSS, RCE, LFI:"
-cat gau.txt | gf xss | tee xss.txt
-cat gau.txt | gf lfi | tee lfi.txt
-cat gau.txt | gf rce | tee rce.txt
-
-
-# Port Scan (Its taking a hella lot of time, not gonna lie (its safer that way)
-echo -e "\n Nmap:"
-nmap -sS -sV -T2 -Pn -p- $domain | tee nmap.txt
-# ----------------------[ DONE ]------------------------
-
-echo -e "\n Analysis finished! All results in results_$domain folder"
+echo -e "\n=== OSINT complete. All results saved in current directory ==="
