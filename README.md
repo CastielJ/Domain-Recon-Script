@@ -1,105 +1,118 @@
-# Deeper OSINT
+---
 
-**Deeper OSINT** is an advanced Bash script for **comprehensive reconnaissance** of a target domain.  
-It automates subdomain enumeration, live host detection, technology fingerprinting, vulnerability scanning, and more — leveraging multiple powerful OSINT tools.
+# deeper-osint.sh
 
-> ⚠️ For **authorized security testing only**. Do not use against targets without explicit permission.
+A **comprehensive OSINT & recon automation script** for penetration testers, bug bounty hunters, and security researchers.
+It gathers information about a target domain and stores results both as **organized output files** and in a **single combined report**.
 
 ---
 
-## 📌 Features
+## Features
 
-- **Subdomain enumeration** via:
-  - [Subfinder](https://github.com/projectdiscovery/subfinder)
-  - [Amass](https://github.com/owasp-amass/amass)
-  - crt.sh certificate transparency logs
-
-- **DNS information**: WHOIS, DIG
-
-- **SSL/TLS scanning**: [sslscan](https://github.com/rbsec/sslscan)
-
-- **Live host detection**: [httpx](https://github.com/projectdiscovery/httpx)
-
-- **Web technology fingerprinting**: [WhatWeb](https://github.com/urbanadventurer/WhatWeb)
-
-- **Directory brute-forcing**: [Gobuster](https://github.com/OJ/gobuster)
-
-- **Vulnerability scanning**: [Nuclei](https://github.com/projectdiscovery/nuclei)
-
-- **Historical URL gathering**:
-  - [waybackurls](https://github.com/tomnomnom/waybackurls)
-  - [gau](https://github.com/lc/gau)
-
-- **Parameter discovery**: [gf](https://github.com/tomnomnom/gf) patterns
-
-- **Port scanning**: [Nmap](https://nmap.org/)
+* **Subdomain Enumeration**: `subfinder`, `amass`, `crt.sh`
+* **DNS & WHOIS Lookup**
+* **SSL/TLS Analysis**: `sslscan` + live certificate extraction (issuer, subject, validity, fingerprints, expiry check)
+* **IP & Reverse PTR Lookup**
+* **Technology Fingerprinting**: `whatweb`
+* **Live Host Detection**: `httpx`
+* **Directory Brute Force**: `gobuster` with Seclists wordlists
+* **Vulnerability Scanning**: `nuclei`
+* **Historical URLs**: `waybackurls`, `gau`
+* **Parameter Discovery**: `gf` patterns (XSS, SQLi, LFI, RCE)
+* **Screenshots** *(optional)*: `gowitness`
+* **ASN Discovery & Scanning** *(optional)*: `amass`, `naabu`
+* **Port Scanning**: `nmap` (placed at the very end)
+* **Unified Report**: all results combined in `full_report.txt`
+* **Organized Outputs**: structured into `results_<domain>/`
 
 ---
 
-## 🚀 Installation
+## 📂 Output Structure
 
-Clone this repository:
-```bash
-git clone https://github.com/<your-username>/deeper-osint.git
-cd deeper-osint
-chmod +x deeper-osint.sh
+When scanning `example.com`, results are saved in:
+
+```
+results_example.com/
+├── asn_ports.txt
+├── crtsh_raw.txt
+├── dns.txt
+├── full_report.txt       # combined report with all results
+├── gobuster.txt
+├── gau.txt
+├── gf_results/
+│   ├── lfi.txt
+│   ├── rce.txt
+│   ├── sqli.txt
+│   └── xss.txt
+├── live.txt
+├── live_cert.txt
+├── nmap.txt
+├── nuclei.txt
+├── ptr.txt
+├── screenshots/
+├── ssl_summary.txt
+├── sslscan.txt
+├── subdomains.txt
+├── summary.txt
+├── wayback.txt
+├── whatweb.txt
+└── whois.txt
 ```
 
-Install dependencies
+## Dependencies
 
-On Kali Linux:
+This script relies on several tools. Install them on **Kali Linux** (or Debian-based systems):
 
-sudo apt update && sudo apt install -y golang subfinder amass whois dnsutils curl jq sslscan whatweb gobuster nmap git
+```bash
+sudo apt update && sudo apt install -y \
+    subfinder amass whois dnsutils curl jq sslscan host whatweb gobuster nmap openssl
+```
 
-# Install Go-based tools
+Additional tools via Go:
+
+```bash
 go install github.com/projectdiscovery/httpx/cmd/httpx@latest
 go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 go install github.com/tomnomnom/waybackurls@latest
 go install github.com/lc/gau/v2/cmd/gau@latest
 go install github.com/tomnomnom/gf@latest
+```
 
-# Install GF patterns
-mkdir -p ~/.gf
-git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf
+Optional:
 
-# Make sure Go bin is in PATH
-echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc && source ~/.zshrc
+```bash
+go install github.com/sensepost/gowitness@latest
+go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+```
 
-🛠 Usage
+Make sure Go binaries are in your PATH:
 
-./deeper-osint.sh <domain>
-./deeper-osint.sh example.com
+```bash
+echo 'export PATH=$PATH:~/go/bin' >> ~/.bashrc
+source ~/.bashrc
+```
 
-Results will be saved into the current directory:
+---
 
-subdomains.txt
-live.txt
-whois.txt
-dig.txt
-sslscan.txt
-whatweb.txt
-gobuster.txt
-nuclei.txt
-wayback.txt
-gau.txt
-gf_results/
-nmap.txt
+## Usage
 
-📂 Output Example
+```bash
+./deeper-osint.sh
+```
 
-[+] Gathering subdomains...
-[*] Found 124 subdomains
+When prompted, enter the target domain (e.g., `example.com`).
+Results will be saved in `results_example.com/`.
 
-[+] Checking live hosts...
-[*] 37 live hosts found
+---
 
-[+] Running nuclei...
-[INF] Nuclei Engine Version: v3.4.6
-[INF] Templates loaded: 6,400+
-[INF] Scan completed in 1m43s
+## ⚠️ Disclaimer
 
+This script is for **educational and security research purposes only**.
+Use it **only on domains you own or have explicit permission to test**.
+The author is not responsible for misuse or damage caused by this tool.
 
-⚠️ Disclaimer
+---
 
-This tool is for authorized security testing and educational purposes only.
-The author is not responsible for any misuse or damage caused.
+Happy hunting & stay ethical!
+
+---
