@@ -151,8 +151,4 @@ if command -v amass >/dev/null 2>&1; then
     fi
 fi
 
-# ===== Port scanning =====
-echo "\n===== Nmap Port Scan =====" >> "$report"
-command -v nmap >/dev/null 2>&1 && [ -s live.txt ] && nmap -iL live.txt -T4 -oN nmap.txt >/dev/null 2>&1 && cat nmap.txt >> "$report"
-
 echo -e "\n=== Scan complete. Results saved in $results_dir/ ==="
