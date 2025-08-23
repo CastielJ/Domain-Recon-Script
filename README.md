@@ -21,7 +21,6 @@ It gathers information about a target domain and stores results both as **organi
 * **Parameter Discovery**: `gf` patterns (XSS, SQLi, LFI, RCE)
 * **Screenshots** *(optional)*: `gowitness`
 * **ASN Discovery & Scanning** *(optional)*: `amass`, `naabu`
-* **Port Scanning**: `nmap` (placed at the very end)
 * **Unified Report**: all results combined in `full_report.txt`
 * **Organized Outputs**: structured into `results_<domain>/`
 
